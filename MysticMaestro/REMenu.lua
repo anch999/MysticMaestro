@@ -35,7 +35,7 @@ do -- Create RE search box widget "EditBoxMysticMaestroREPredictor"
           MM:SetResultSet({key})
           MM:GoToPage(1)
           MM:SetSelectedEnchantButton(1)
-          if self.menuState == "AUCTION" then
+          if MM:IsEmbeddedMenuOpen() then
             MM:SelectMyAuctionByEnchantID(key)
             MM:ClearSelectedEnchantAuctions()
           end
@@ -47,7 +47,7 @@ do -- Create RE search box widget "EditBoxMysticMaestroREPredictor"
             MM:SetResultSet({key})
             MM:GoToPage(1)
             MM:SetSelectedEnchantButton(1)
-            if self.menuState == "AUCTION" then
+            if MM:IsEmbeddedMenuOpen() then
               MM:SelectMyAuctionByEnchantID(key)
               MM:ClearSelectedEnchantAuctions()
             end
@@ -87,15 +87,6 @@ local prevPageButton, nextPageButton, pageTextFrame
 local enchantContainer, statsContainer, graphContainer, currencyContainer
 local initializeStandaloneMenuContainer, initializeMenu
 do -- functions to initialize menu and menu container
-  local FrameBackdrop = {
-    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-    tile = true,
-    tileSize = 32,
-    edgeSize = 32,
-    insets = {left = 8, right = 8, top = 8, bottom = 8}
-  }
-
   function initializeStandaloneMenuContainer()
     local standaloneMenuContainer = CreateFrame("Frame", "MysticMaestroMenuContainer", UIParent)
     table.insert(UISpecialFrames, standaloneMenuContainer:GetName())
@@ -104,7 +95,7 @@ do -- functions to initialize menu and menu container
     standaloneMenuContainer:SetMovable(true)
     standaloneMenuContainer:SetResizable(false)
     standaloneMenuContainer:SetFrameStrata("MEDIUM")
-    standaloneMenuContainer:SetBackdrop(FrameBackdrop)
+    standaloneMenuContainer:SetBackdrop(MM.FrameBackdrop)
     standaloneMenuContainer:SetBackdropColor(0, 0, 0, 1)
     standaloneMenuContainer:SetToplevel(true)
     standaloneMenuContainer:SetPoint("CENTER")
@@ -112,32 +103,7 @@ do -- functions to initialize menu and menu container
     standaloneMenuContainer:SetClampedToScreen(true)
     standaloneMenuContainer:SetScript("OnHide", function(self) MM:HideMysticMaestroMenu() end)
 
-    -- function from WeakAuras Options for pretty border
-    local function CreateDecoration(frame, width)
-      local deco = CreateFrame("Frame", nil, frame)
-      deco:SetSize(width, 40)
-
-      local bg1 = deco:CreateTexture(nil, "MEDIUM")
-      bg1:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-      bg1:SetTexCoord(0.31, 0.67, 0, 0.63)
-      bg1:SetAllPoints(deco)
-
-      local bg2 = deco:CreateTexture(nil, "MEDIUM")
-      bg2:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-      bg2:SetTexCoord(0.235, 0.275, 0, 0.63)
-      bg2:SetPoint("RIGHT", bg1, "LEFT", 1, 0)
-      bg2:SetSize(10, 40)
-
-      local bg3 = deco:CreateTexture(nil, "MEDIUM")
-      bg3:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-      bg3:SetTexCoord(0.72, 0.76, 0, 0.63)
-      bg3:SetPoint("LEFT", bg1, "RIGHT", -1, 0)
-      bg3:SetSize(10, 40)
-
-      return deco
-    end
-
-    local title = CreateDecoration(standaloneMenuContainer, 130)
+    local title = MM:CreateDecoration(standaloneMenuContainer, 130)
     title:SetPoint("TOP", 0, 24)
     title:EnableMouse(true)
     title:SetScript(
@@ -157,7 +123,7 @@ do -- functions to initialize menu and menu container
     titletext:SetPoint("CENTER", title)
     titletext:SetText("Mystic Maestro")
 
-    local close = CreateDecoration(standaloneMenuContainer, 17)
+    local close = MM:CreateDecoration(standaloneMenuContainer, 17)
     close:SetPoint("TOPRIGHT", -30, 12)
 
     local closebutton = CreateFrame("BUTTON", nil, close, "UIPanelCloseButton")
@@ -255,7 +221,7 @@ do -- functions to initialize menu and menu container
 
     local insert = MM.db.realm.FAVORITE_ENCHANTS[enchantID] and "w" or " longer"
     MM:Print(MM:ItemLinkRE(enchantID).." is no"..insert.." a favorite.")
-    if self.menuState == "AUCTION" then
+    if MM:IsEmbeddedMenuOpen() then
       MM:CacheMyAuctionResults()
       MM:RefreshMyAuctionsScrollFrame()
     end
@@ -424,9 +390,11 @@ do -- functions to initialize menu and menu container
     pageButton:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-" .. prevOrNext .."Page-Down")
     pageButton:SetDisabledTexture("Interface\\Buttons\\UI-SpellbookIcon-" .. prevOrNext .."Page-Disabled")
     pageButton:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
-    pageButton:SetScript("OnClick", function(self)
-      MM[prevOrNext.."Page"](MM)
-    end)
+    pageButton:SetScript("OnClick",
+      function(self)
+        MM[prevOrNext.."Page"](MM)
+      end
+    )
     return pageButton
   end
 
@@ -454,14 +422,16 @@ do -- functions to initialize menu and menu container
     refreshButton:SetNormalTexture("Interface\\BUTTONS\\UI-RefreshButton")
     refreshButton:SetPushedTexture("Interface\\AddOns\\MysticMaestro\\textures\\UI-RefreshButton-Down")
     refreshButton:SetScript("OnClick",
-    function(self)
-      MM:SetSearchBarDefaultText()
-      MM:FilterMysticEnchants()
-      MM:GoToPage(1)
-      if self.menuState == "AUCTION" then
-        MM:ResetAHExtension()
+      function(self)
+        if MM.AutomationManager:IsRunning() then return end
+        MM:SetSearchBarDefaultText()
+        MM:FilterMysticEnchants()
+        MM:GoToPage(1)
+        if MM:IsEmbeddedMenuOpen() then
+          MM:ResetAHExtension()
+        end
       end
-    end)
+    )
     MM_FRAMES_MENU_REFRESH = refreshButton
   end
 
@@ -473,6 +443,7 @@ do -- functions to initialize menu and menu container
     settingsButton:SetNormalTexture("Interface\\AddOns\\MysticMaestro\\textures\\settings_icon")
     settingsButton:SetScript("OnClick",
       function()
+        if MM.AutomationManager:IsRunning() then return end
         InterfaceOptionsFrame_OpenToCategory("Mystic Maestro")
       end
     )
@@ -494,7 +465,7 @@ do -- functions to initialize menu and menu container
   end
 
   local function bagUpdateHandler(bagIDs)
-    if MM.menuState ~= "CLOSED" or awaitingRECraftResults then
+    if MM:IsMenuOpen() or awaitingRECraftResults then
       updateSellableREsCache(bagIDs)
     end
 
@@ -508,7 +479,7 @@ do -- functions to initialize menu and menu container
         MM:Print("Applied to insignia: "..MM:ItemLinkRE(enchantToCraft))
       end
     end
-    if MM.menuState ~= "CLOSED" then
+    if MM:IsMenuOpen() then
       MM:UpdateCurrencyDisplay()
       updateCraftIndicators()
     end
@@ -516,7 +487,7 @@ do -- functions to initialize menu and menu container
 
   function initializeMenu()
     createMenu()
-    enchantContainer = MM:CreateContainer(mmf, "BOTTOMLEFT", 202, 334, 8, 8)
+    enchantContainer = MM:CreateMenuContainer(mmf, "BOTTOMLEFT", 202, 334, 8, 8)
     enchantContainer:EnableMouseWheel()
     enchantContainer:SetScript("OnMouseWheel",
     function(self, delta)
@@ -526,8 +497,8 @@ do -- functions to initialize menu and menu container
         MM:NextPage()
       end
     end)
-    statsContainer = MM:CreateContainer(mmf, "BOTTOMRIGHT", 378, 134, -8, 8)
-    graphContainer = MM:CreateContainer(mmf, "BOTTOMRIGHT", 378, 170, -8, 144)
+    statsContainer = MM:CreateMenuContainer(mmf, "BOTTOMRIGHT", 378, 134, -8, 8)
+    graphContainer = MM:CreateMenuContainer(mmf, "BOTTOMRIGHT", 378, 170, -8, 144)
     MM:InitializeGraph("MysticEnchantStatsGraph", graphContainer, "BOTTOMLEFT", "BOTTOMLEFT", 0, 1, 378, 170)
     createCurrencyContainer(enchantContainer)
     createEnchantButtons(enchantContainer)
@@ -563,7 +534,7 @@ do -- hook and display MysticMaestroMenu in AuctionFrame
     end
     if index ~= MM.AHTabIndex then
       AuctionPortraitTexture:Show()
-      if MM.menuState == "AUCTION" then
+      if MM:IsEmbeddedMenuOpen() then
         MM:HideMysticMaestroMenu()
         MM:HideAHExtension()
       end
@@ -575,12 +546,12 @@ do -- hook and display MysticMaestroMenu in AuctionFrame
       AuctionFrameBotLeft:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Bid-BotLeft");
       AuctionFrameBot:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Auction-Bot");
       AuctionFrameBotRight:SetTexture("Interface\\AddOns\\MysticMaestro\\textures\\UI-AuctionFrame-MysticMaestro-BotRight");
+      if MM:IsStandAloneMenuOpen() then
+        MysticMaestroMenuContainer:Hide()
+      end
       MysticMaestroMenu:ClearAllPoints()
       MysticMaestroMenu:SetPoint("BOTTOMLEFT", AuctionFrame, "BOTTOMLEFT", 13, 31)
       MysticMaestroMenu:SetParent(AuctionFrame)
-      if MM.menuState == "STANDALONE" then
-        MysticMaestroMenuContainer:Hide()
-      end
       MM:ShowMysticMaestroMenu()
       MM:ShowAHExtension()
     end
@@ -600,7 +571,7 @@ do -- hook and display MysticMaestroMenu in AuctionFrame
 
     self:HookScript(AuctionFrame, "OnHide",
     function()
-      if MysticMaestroMenu and MysticMaestroMenu:IsShown() and MysticMaestroMenu:GetParent() == AuctionFrame then
+      if self:IsEmbeddedMenuOpen() then
         self:HideMysticMaestroMenu()
         self:HideAHExtension()
       end
@@ -623,7 +594,6 @@ do  -- display MysticMaestroMenu in standalone container
     MysticMaestroMenu:SetParent(MysticMaestroMenuContainer)
     self:ShowMysticMaestroMenu()
     MysticMaestroMenuContainer:Show()
-    self.menuState = "STANDALONE"
   end
 end
 
@@ -711,7 +681,7 @@ do -- show and hide MysticMaestroMenu
       MM:SetSearchBarDefaultText()
       MM:FilterMysticEnchants(itemsToFilter(items))
       MM:GoToPage(1)
-      if self.menuState == "AUCTION" then
+      if MM:IsEmbeddedMenuOpen() then
         MM:ResetAHExtension()
       end
     end
@@ -913,6 +883,7 @@ do -- show and hide MysticMaestroMenu
     self:GoToPage(1)
     MysticMaestroMenu:SetFrameStrata("HIGH")
     MysticMaestroMenu:Show()
+    self.AutomationManager:ShowAutomationPromptIfPaused()
   end
 
   local function tearDownWidgets()
@@ -926,20 +897,27 @@ do -- show and hide MysticMaestroMenu
     wipe(statsContainerWidgets)
   end
 
+  function MM:SetMenuWidgetsLocked(isLocked)
+    automationDropdown:SetDisabled(isLocked)
+    sortDropdown:SetDisabled(isLocked)
+    filterDropdown:SetDisabled(isLocked)
+    searchBar:SetDisabled(isLocked)
+  end
+
   function MM:HideMysticMaestroMenu()
     tearDownWidgets()
-    MM:HideEnchantButtons()
+    self:HideEnchantButtons()
     wipe(queryResults)
     StaticPopup_Hide("MM_CRAFT_RE")
+    self.AutomationManager:StopAutomation()
     MysticMaestroMenu:Hide()
-    self.menuState = "CLOSED"
   end
 
   function MM:HandleMenuSlashCommand()
-    if self.menuState == "STANDALONE" then
+    if self:IsStandAloneMenuOpen() then
       HideUIPanel(MysticMaestroMenuContainer)
     else
-      if self.menuState == "AUCTION" then
+      if self:IsEmbeddedMenuOpen() then
         self:HideMysticMaestroMenu()
         self:HideAHExtension()
         HideUIPanel(AuctionFrame)
@@ -1226,7 +1204,7 @@ end
     self:PruneOldListings(button.enchantID)
     self:PopulateGraph(button.enchantID)
     self:ShowStatistics(button.enchantID)
-    if self.menuState == "AUCTION" then
+    if self:IsEmbeddedMenuOpen() then
       self:CancelDisplayEnchantAuctions()
       self:ClearSelectedEnchantAuctions()
       self:InitializeSingleScan(button.enchantID) -- async populate scroll bars
@@ -1242,7 +1220,7 @@ end
     end
     self:ClearGraph()
     self:HideStatistics()
-    if self.menuState == "AUCTION" then
+    if self:IsEmbeddedMenuOpen() then
       self:ResetAHExtension()
     end
     selectedEnchantButton = nil
