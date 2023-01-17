@@ -62,7 +62,7 @@ local paused
 -- called when menu is opened
 function MM.AutomationManager:ShowAutomationPromptIfPaused()
   if paused then
-    self:ShowAutomationPrompt(currentAutomationName)
+    self:StartAutomation(currentAutomationName)
   end
 end
 
@@ -78,7 +78,7 @@ end
 
   -- called by Scan button or automation function dropdown
 function MM.AutomationManager:ShowAutomationPrompt(automationName)
-  if not self:IsRunning() then
+  if not currentAutomationName or paused then
     setCurrentAutomation(automationName)
     currentTask = "init"
     setMenuLocked(true)
@@ -111,10 +111,6 @@ function MM.AutomationManager:StopAutomation()
   end
 end
 
-function MM.AutomationManager:IsRunning()
-  return currentAutomationName and not paused
-end
-
 local function logStatusError(status)
   MM:Print("ERROR: Unrecognized automation function status \"" .. tostring(status) .. "\"")
 end
@@ -132,7 +128,6 @@ local function handleInitStatus(status)
   elseif status == "cancelClicked" then
     if not paused then
       terminateAutomation()
-      setMenuLocked(false)
     end
   else
     logStatusError(status)
@@ -177,6 +172,6 @@ function MM.AutomationManager:Inform(automationTable, status)
   if automationTable == currentAutomationTable then
     manageAutomationFunction(status)
   else
-    MM:Print("ERROR: Unmanaged automation function is running: " .. automationTable.GetName() .. " " .. status)
+    MM:Print("ERROR: Unmanaged automation function is running")
   end
 end

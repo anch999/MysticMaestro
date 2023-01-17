@@ -35,7 +35,7 @@ do -- Create RE search box widget "EditBoxMysticMaestroREPredictor"
           MM:SetResultSet({key})
           MM:GoToPage(1)
           MM:SetSelectedEnchantButton(1)
-          if MM:IsEmbeddedMenuOpen() then
+          if MM.menuState == "AUCTION" then
             MM:SelectMyAuctionByEnchantID(key)
             MM:ClearSelectedEnchantAuctions()
           end
@@ -47,7 +47,7 @@ do -- Create RE search box widget "EditBoxMysticMaestroREPredictor"
             MM:SetResultSet({key})
             MM:GoToPage(1)
             MM:SetSelectedEnchantButton(1)
-            if MM:IsEmbeddedMenuOpen() then
+            if MM.menuState == "AUCTION" then
               MM:SelectMyAuctionByEnchantID(key)
               MM:ClearSelectedEnchantAuctions()
             end
@@ -221,7 +221,7 @@ do -- functions to initialize menu and menu container
 
     local insert = MM.db.realm.FAVORITE_ENCHANTS[enchantID] and "w" or " longer"
     MM:Print(MM:ItemLinkRE(enchantID).." is no"..insert.." a favorite.")
-    if MM:IsEmbeddedMenuOpen() then
+    if MM.menuState == "AUCTION" then
       MM:CacheMyAuctionResults()
       MM:RefreshMyAuctionsScrollFrame()
     end
@@ -423,11 +423,11 @@ do -- functions to initialize menu and menu container
     refreshButton:SetPushedTexture("Interface\\AddOns\\MysticMaestro\\textures\\UI-RefreshButton-Down")
     refreshButton:SetScript("OnClick",
       function(self)
-        if MM.AutomationManager:IsRunning() then return end
+        if MM.menuState == "AUTOMATION" then return end
         MM:SetSearchBarDefaultText()
         MM:FilterMysticEnchants()
         MM:GoToPage(1)
-        if MM:IsEmbeddedMenuOpen() then
+        if MM.menuState == "AUCTION" then
           MM:ResetAHExtension()
         end
       end
@@ -443,7 +443,7 @@ do -- functions to initialize menu and menu container
     settingsButton:SetNormalTexture("Interface\\AddOns\\MysticMaestro\\textures\\settings_icon")
     settingsButton:SetScript("OnClick",
       function()
-        if MM.AutomationManager:IsRunning() then return end
+        if MM.menuState == "AUTOMATION" then return end
         InterfaceOptionsFrame_OpenToCategory("Mystic Maestro")
       end
     )
@@ -465,7 +465,7 @@ do -- functions to initialize menu and menu container
   end
 
   local function bagUpdateHandler(bagIDs)
-    if MM:IsMenuOpen() or awaitingRECraftResults then
+    if MM.menuState ~= "CLOSED" or awaitingRECraftResults then
       updateSellableREsCache(bagIDs)
     end
 
@@ -479,7 +479,7 @@ do -- functions to initialize menu and menu container
         MM:Print("Applied to insignia: "..MM:ItemLinkRE(enchantToCraft))
       end
     end
-    if MM:IsMenuOpen() then
+    if MM.menuState ~= "CLOSED" then
       MM:UpdateCurrencyDisplay()
       updateCraftIndicators()
     end
@@ -534,7 +534,7 @@ do -- hook and display MysticMaestroMenu in AuctionFrame
     end
     if index ~= MM.AHTabIndex then
       AuctionPortraitTexture:Show()
-      if MM:IsEmbeddedMenuOpen() then
+      if MM.menuState == "AUCTION" then
         MM:HideMysticMaestroMenu()
         MM:HideAHExtension()
       end
@@ -546,12 +546,12 @@ do -- hook and display MysticMaestroMenu in AuctionFrame
       AuctionFrameBotLeft:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Bid-BotLeft");
       AuctionFrameBot:SetTexture("Interface\\AuctionFrame\\UI-AuctionFrame-Auction-Bot");
       AuctionFrameBotRight:SetTexture("Interface\\AddOns\\MysticMaestro\\textures\\UI-AuctionFrame-MysticMaestro-BotRight");
-      if MM:IsStandAloneMenuOpen() then
-        MysticMaestroMenuContainer:Hide()
-      end
       MysticMaestroMenu:ClearAllPoints()
       MysticMaestroMenu:SetPoint("BOTTOMLEFT", AuctionFrame, "BOTTOMLEFT", 13, 31)
       MysticMaestroMenu:SetParent(AuctionFrame)
+      if MM.menuState == "STANDALONE" then
+        MysticMaestroMenuContainer:Hide()
+      end
       MM:ShowMysticMaestroMenu()
       MM:ShowAHExtension()
     end
@@ -571,7 +571,7 @@ do -- hook and display MysticMaestroMenu in AuctionFrame
 
     self:HookScript(AuctionFrame, "OnHide",
     function()
-      if self:IsEmbeddedMenuOpen() then
+      if MysticMaestroMenu and MysticMaestroMenu:IsShown() and MysticMaestroMenu:GetParent() == AuctionFrame then
         self:HideMysticMaestroMenu()
         self:HideAHExtension()
       end
@@ -594,6 +594,7 @@ do  -- display MysticMaestroMenu in standalone container
     MysticMaestroMenu:SetParent(MysticMaestroMenuContainer)
     self:ShowMysticMaestroMenu()
     MysticMaestroMenuContainer:Show()
+    self.menuState = "STANDALONE"
   end
 end
 
@@ -681,7 +682,7 @@ do -- show and hide MysticMaestroMenu
       MM:SetSearchBarDefaultText()
       MM:FilterMysticEnchants(itemsToFilter(items))
       MM:GoToPage(1)
-      if MM:IsEmbeddedMenuOpen() then
+      if MM.menuState == "AUCTION" then
         MM:ResetAHExtension()
       end
     end
@@ -905,18 +906,18 @@ do -- show and hide MysticMaestroMenu
 
   function MM:HideMysticMaestroMenu()
     tearDownWidgets()
-    self:HideEnchantButtons()
+    MM:HideEnchantButtons()
     wipe(queryResults)
     StaticPopup_Hide("MM_CRAFT_RE")
-    self.AutomationManager:StopAutomation()
     MysticMaestroMenu:Hide()
+    self.menuState = "CLOSED"
   end
 
   function MM:HandleMenuSlashCommand()
-    if self:IsStandAloneMenuOpen() then
+    if self.menuState == "STANDALONE" then
       HideUIPanel(MysticMaestroMenuContainer)
     else
-      if self:IsEmbeddedMenuOpen() then
+      if self.menuState == "AUCTION" then
         self:HideMysticMaestroMenu()
         self:HideAHExtension()
         HideUIPanel(AuctionFrame)
@@ -1203,7 +1204,7 @@ end
     self:PruneOldListings(button.enchantID)
     self:PopulateGraph(button.enchantID)
     self:ShowStatistics(button.enchantID)
-    if self:IsEmbeddedMenuOpen() then
+    if self.menuState == "AUCTION" then
       self:CancelDisplayEnchantAuctions()
       self:ClearSelectedEnchantAuctions()
       self:InitializeSingleScan(button.enchantID) -- async populate scroll bars
@@ -1219,7 +1220,7 @@ end
     end
     self:ClearGraph()
     self:HideStatistics()
-    if self:IsEmbeddedMenuOpen() then
+    if self.menuState == "AUCTION" then
       self:ResetAHExtension()
     end
     selectedEnchantButton = nil
