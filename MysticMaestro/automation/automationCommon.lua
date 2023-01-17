@@ -2,36 +2,36 @@ local MM = LibStub("AceAddon-3.0"):GetAddon("MysticMaestro")
 
 local AceGUI = LibStub("AceGUI-3.0")
 
-local automationPopupFrame
+local automationPromptFrame
 
-local function createAutomationPopupFrame()
+local function createAutomationPromptFrame()
   -- set up widget container
-  automationPopupFrame = CreateFrame("Frame", nil, MysticMaestroMenu)
-  automationPopupFrame:SetResizable(false)
-  automationPopupFrame:SetFrameStrata("DIALOG")
-  automationPopupFrame:SetBackdrop(MM.FrameBackdrop)
-  automationPopupFrame:SetBackdropColor(0, 0, 0, 1)
-  automationPopupFrame:SetToplevel(true)
-  automationPopupFrame:SetPoint("CENTER")
-  automationPopupFrame.Title = MM:CreateDecoration(automationPopupFrame, 40)
-  automationPopupFrame.Title:SetPoint("TOP", 0, 8)
-  automationPopupFrame.Title.Text = automationPopupFrame.Title:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  automationPopupFrame.Title.Text:SetPoint("CENTER", automationPopupFrame.Title)
+  automationPromptFrame = CreateFrame("Frame", nil, MysticMaestroMenu)
+  automationPromptFrame:SetResizable(false)
+  automationPromptFrame:SetFrameStrata("DIALOG")
+  automationPromptFrame:SetBackdrop(MM.FrameBackdrop)
+  automationPromptFrame:SetBackdropColor(0, 0, 0, 1)
+  automationPromptFrame:SetToplevel(true)
+  automationPromptFrame:SetPoint("CENTER")
+  automationPromptFrame.Title = MM:CreateDecoration(automationPromptFrame, 40)
+  automationPromptFrame.Title:SetPoint("TOP", 0, 8)
+  automationPromptFrame.Title.Text = automationPromptFrame.Title:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  automationPromptFrame.Title.Text:SetPoint("CENTER", automationPromptFrame.Title)
 end
 
-local function setPopupAutomation(automationName, automationTable)
-  automationPopupFrame.Title.Text:SetText(automationName)
-  automationPopupFrame.Title:SetSize(automationPopupFrame.Title.Text:GetWidth() + 8, 40)
-  automationPopupFrame.AutomationTable = automationTable
+local function setPromptAutomation(automationName, automationTable)
+  automationPromptFrame.Title.Text:SetText(automationName)
+  automationPromptFrame.Title:SetSize(automationPromptFrame.Title.Text:GetWidth() + 8, 40)
+  automationPromptFrame.AutomationTable = automationTable
 end
 
-local popupWidgets = {}
+local promptWidgets = {}
 
-local function releasePopupWidgets()
-  for _, widget in ipairs(popupWidgets) do
+local function releasePromptWidgets()
+  for _, widget in ipairs(promptWidgets) do
     widget:Release()
   end
-  popupWidgets = {}
+  promptWidgets = {}
 end
 
 local promptButtonWidth = 90
@@ -40,16 +40,16 @@ local function createPromptButton(automationTable, text, informStatus, xOffset)
   local button = AceGUI:Create("Button")
   button:SetWidth(promptButtonWidth)
   button:SetText(text)
-  button:SetPoint("TOP", automationPopupFrame, "TOP", xOffset, -40)
+  button:SetPoint("TOP", automationPromptFrame, "TOP", xOffset, -40)
   button:SetCallback("OnClick",
     function()
-      MM.AutomationUtil.HideAutomationPopup()
+      MM.AutomationUtil.HideAutomationPrompt()
       MM.AutomationManager:Inform(automationTable, informStatus)
     end
   )
-  button.frame:SetParent(automationPopupFrame)
+  button.frame:SetParent(automationPromptFrame)
   button.frame:Show()
-  table.insert(popupWidgets, button)
+  table.insert(promptWidgets, button)
   return button
 end
 
@@ -65,59 +65,47 @@ local function createButtonWidgets(automationTable)
 end
 
 local function setPromptSize(automationTable)
-    automationPopupFrame:SetSize(automationTable.Pause and automationTable:IsPaused() and 300 or 200, 100)
+    automationPromptFrame:SetSize(automationTable.Pause and automationTable:IsPaused() and 300 or 200, 100)
 end
 
 local function showAutomationPrompt()
-  local automationTable = automationPopupFrame.AutomationTable
+  local automationTable = automationPromptFrame.AutomationTable
+  releasePromptWidgets()
   createButtonWidgets(automationTable)
   setPromptSize(automationTable)
-  automationPopupFrame:Show()
+  automationPromptFrame:Show()
 end
 
-local function hideAutomationPopup()
-  automationPopupFrame:Hide()
+local function hideAutomationPrompt()
+  releasePromptWidgets()
+  automationPromptFrame:Hide()
 end
+
+local pendingVisibilityStatus
 
 MM.AutomationUtil = {}
 
-local pendingTemplate
-
-local validTemplates = {
-  ["prompt"] = true,
-  ["running"] = true
-}
-
--- schedules the popup to show or hide in the OnUpdate script since Show and Hide can be called on the same frame
-function MM.AutomationUtil.ShowAutomationPopup(automationName, automationTable, templateName)
-  if not automationPopupFrame then
-    createAutomationPopupFrame()
+function MM.AutomationUtil.ShowAutomationPrompt(automationName, automationTable)
+  if not automationPromptFrame then
+    createAutomationPromptFrame()
   end
-  setPopupAutomation(automationName, automationTable)
-  if validTemplates[templateName] then
-    pendingTemplate = templateName
-  else
-    MM:Print("ERROR: Unrecognized template name: " .. pendingTemplate)
-  end
+  setPromptAutomation(automationName, automationTable)
+  pendingVisibilityStatus = true
 end
 
-function MM.AutomationUtil.HideAutomationPopup()
-  pendingTemplate = false
+function MM.AutomationUtil.HideAutomationPrompt()
+  pendingVisibilityStatus = false
 end
 
 MM.OnUpdateFrame:HookScript("OnUpdate",
   function()
-    if pendingTemplate ~= nil then
-      releasePopupWidgets()
-      if pendingTemplate == "prompt" then
+    if pendingVisibilityStatus ~= nil then
+      if pendingVisibilityStatus then
         showAutomationPrompt()
-      elseif pendingTemplate == "running" then
-        print("showing running")
-        -- TODO showAutomationRunning()
       else
-        hideAutomationPopup()
+        hideAutomationPrompt()
       end
-      pendingTemplate = nil
+      pendingVisibilityStatus = nil
     end
   end
 )

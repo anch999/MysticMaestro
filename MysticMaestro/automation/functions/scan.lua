@@ -12,17 +12,11 @@ end
 
 function automationTable.ShowInitPrompt()
   print("showinitprompt called")
-  MM.AutomationUtil.ShowAutomationPopup(automationName, automationTable, "prompt")
+  MM.AutomationUtil.ShowAutomationPrompt(automationName, automationTable)
 end
-
-
 
 function automationTable.Start()
   print("start called")
-  -- collect list of enchants to search if not paused
-  -- show progress bar (set automation table, and make buttons visible based on whether or not automation is pausable, set progress current and max)
-  -- update progress bar
-  MM.AutomationUtil.ShowAutomationPopup(automationName, automationTable, "running")
   isPaused = false
 end
 
@@ -37,7 +31,7 @@ end
 
 function automationTable.Stop()
   print("stop called")
-  MM.AutomationUtil.HideAutomationPopup()
+  MM.AutomationUtil.HideAutomationPrompt()
   isPaused = false
 end
 
