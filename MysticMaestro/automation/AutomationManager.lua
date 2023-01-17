@@ -74,9 +74,6 @@ end
 local function setMenuLocked(isLocked)
   MM:SetMenuContainersLocked(isLocked)
   MM:SetMenuWidgetsLocked(isLocked)
-  if not isLocked then
-    currentTask = nil
-  end
 end
 
   -- called by Scan button or automation function dropdown
@@ -96,8 +93,9 @@ local function terminateAutomation()
   currentAutomationName = nil
   currentAutomationTable = nil
   currentTask = nil
-  setMenuLocked(false)
 end
+
+local paused
 
 -- called when menu is closed
 function MM.AutomationManager:StopAutomation()
@@ -106,15 +104,15 @@ function MM.AutomationManager:StopAutomation()
       paused = true
       currentAutomationTable.Pause()
       MM:Print("Automation function paused")
-      setMenuLocked(false)
-    elseif not paused then
+    else
       terminateAutomation()
     end
+    setMenuLocked(false)
   end
 end
 
 function MM.AutomationManager:IsRunning()
-  return currentAutomationName and currentTask
+  return currentAutomationName and not paused
 end
 
 local function logStatusError(status)
@@ -134,7 +132,6 @@ local function handleInitStatus(status)
   elseif status == "cancelClicked" then
     if not paused then
       terminateAutomation()
-    else
       setMenuLocked(false)
     end
   else
