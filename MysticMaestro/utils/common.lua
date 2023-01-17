@@ -32,46 +32,46 @@ function MM:Compare(a,b,comparitor)
   end
 end
 
-local function findAboveMin(list)
+local function findAboveMin(value,list)
   for _, v in pairs(list) do
-    if v.buyoutPrice > MM.db.realm.OPTIONS.postMin * 10000 then
-      return MM:PriceCorrection(v,list)
+    if v >= MM.db.realm.OPTIONS.postMin * 10000 then
+      return v
     end
   end
-  return MM.db.realm.OPTIONS.postDefault * 10000, true
+  return MM.db.realm.OPTIONS.postDefault * 10000
 end
 
-local function ifUnder(obj,list)
+local function ifUnder(value,list)
   if MM.db.realm.OPTIONS.postIfUnder == "UNDERCUT" then
-    return obj.buyoutPrice, obj.yours
-  elseif MM.db.realm.OPTIONS.postIfUnder == "IGNORE" then
-    return findAboveMin(list)
-  elseif MM.db.realm.OPTIONS.postIfUnder == "DEFAULT" then
-    return MM.db.realm.OPTIONS.postDefault * 10000, true
-  elseif MM.db.realm.OPTIONS.postIfUnder == "MAX" then
-    return MM.db.realm.OPTIONS.postMax * 10000, true
-  elseif MM.db.realm.OPTIONS.postIfUnder == "KEEP" then
+    return value
+  else if MM.db.realm.OPTIONS.postIfUnder == "IGNORE" then
+    return findAboveMin(value,list)
+  else if MM.db.realm.OPTIONS.postIfUnder == "DEFAULT" then
+    return MM.db.realm.OPTIONS.postDefault * 10000
+  else if MM.db.realm.OPTIONS.postIfUnder == "MAX" then
+    return MM.db.realm.OPTIONS.postMax * 10000
+  else if MM.db.realm.OPTIONS.postIfUnder == "KEEP" then
     return false
   end
 end
 
-local function ifOver(obj)
+local function ifOver(value)
   if MM.db.realm.OPTIONS.postIfOver == "UNDERCUT" then
-    return obj.buyoutPrice, obj.yours
-  elseif MM.db.realm.OPTIONS.postIfOver == "DEFAULT" then
-    return MM.db.realm.OPTIONS.postDefault * 10000, true
-  elseif MM.db.realm.OPTIONS.postIfOver == "MAX" then
-    return MM.db.realm.OPTIONS.postMax * 10000, true
+    return value
+  if MM.db.realm.OPTIONS.postIfOver == "DEFAULT" then
+    return MM.db.realm.OPTIONS.postDefault * 10000
+  if MM.db.realm.OPTIONS.postIfOver == "MAX" then
+
   end
 end
 
-function MM:PriceCorrection(obj,list)
-  if obj.buyoutPrice < MM.db.realm.OPTIONS.postMin * 10000 then
-    return ifUnder(obj,list)
-  elseif obj.buyoutPrice > MM.db.realm.OPTIONS.postMax * 10000 then
-    return ifOver(obj)
+function MM:PriceCorrection(value,list)
+  if value < MM.db.realm.OPTIONS.postMin * 10000 then
+    return ifUnder(value,list)
+  else if value > MM.db.realm.OPTIONS.postMax * 10000 then
+    return ifOver(value)
   else
-    return obj.buyoutPrice, obj.yours
+    return value
   end
 end
 

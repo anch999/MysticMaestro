@@ -1,185 +1,100 @@
 local MM = LibStub("AceAddon-3.0"):GetAddon("MysticMaestro")
 --[[
 automationTable = {
-
-  -- sets up widgets, title, configurations, estimated time, start and cancel buttons
-  ShowInitPrompt = function() end,
-    current task: init
-    inform statuses:
-    - startClicked - the Start button was clicked (only shows if automation was not paused)
-    - continueClicked - the Continue button was clicked (only shows if automation was paused)
-    - stopClicked - the Stop button was clicked (only shows if automation was paused)
-    - cancelClicked - the Cancel button was clicked
-
-  -- sets up widgets, progress bar, status, cancel button
-  Start = function() end,
-    current task: running
-    inform statuses:
-    - finished - the automation has finished
-    - cancelClicked - the Cancel button was clicked
-
-  -- optional window if post-processing is required
-  PostProcessing = function() end,
-    current task: postprocessing
-    inform statuses:
-    - finished - post processing has finished
-
-  -- optional if automation is pausable
-  Pause = function() end
-    inform statuses:
-    - <none>
-
-  -- cleans up automation behavior
-  Stop = function() end,
-    inform statuses:
-    - <none>
+  ShowInitPrompt = function() end,  -- sets up widgets, title, configurations, estimated time, start and cancel buttons
+  Cancel = function() end,          -- cleans up automation behavior
+  Start = function() end,           -- sets up widgets, progress bar, status, cancel button
+  PostProcessing = function() end,  -- optional window if post-processing is required
+  Pause = function() end            -- optional if automation is pausable
 }
 ]]
 
 MM.AutomationManager = {}
 
 local automationTables = {}
-
-local function validateInterface(automationTable)
-  return automationTable.ShowInitPrompt and type(automationTable.ShowInitPrompt) == "function"
-    and automationTable.Start and type(automationTable.Start) == "function"
-    and automationTable.Stop and type(automationTable.Stop) == "function"
+function MM.AutomationManager:AddAutomation(automationName, automationTable)
+  automationTables[automationName] = automationTable
 end
 
-function MM.AutomationManager:RegisterAutomation(automationName, automationTable)
-  local isValid = validateInterface(automationTable)
-  if isValid then
-    automationTables[automationName] = automationTable
-  else
-    MM:Print("ERROR: Automation table \"".. tostring(automationName) .. "\" has an invalid interface")
-  end
-end
-
-local currentAutomationName, currentAutomationTable, currentTask -- init, running, postprocessing, paused
-
-local paused
-
--- called when menu is opened
-function MM.AutomationManager:ShowAutomationPromptIfPaused()
-  if paused then
-    self:ShowAutomationPrompt(currentAutomationName)
-  end
-end
-
-local function setCurrentAutomation(automationName)
-  currentAutomationName = automationName
-  currentAutomationTable = automationTables[currentAutomationName]
-end
+local currentAutomation, currentTask -- init, running, postprocessing, paused
 
 local function setMenuLocked(isLocked)
-  MM:SetMenuContainersLocked(isLocked)
-  MM:SetMenuWidgetsLocked(isLocked)
-  if not isLocked then
-    currentTask = nil
-  end
+  -- TODO
 end
 
-  -- called by Scan button or automation function dropdown
-function MM.AutomationManager:ShowAutomationPrompt(automationName)
-  if not self:IsRunning() then
-    setCurrentAutomation(automationName)
+function MM.AutomationManager:InitAutomation(automationName)
+  if automationName == currentAutomation and currentTask == "paused" or not currentAutomation then
     currentTask = "init"
     setMenuLocked(true)
-    currentAutomationTable.ShowInitPrompt()
+    currentAutomation.ShowInitPrompt()
   else
     MM:Print("ERROR: Attempt to initialize automation function while another is running")
   end
 end
 
 local function terminateAutomation()
-  currentAutomationTable.Stop()
-  currentAutomationName = nil
-  currentAutomationTable = nil
+  currentAutomation = nil
   currentTask = nil
   setMenuLocked(false)
 end
 
--- called when menu is closed
 function MM.AutomationManager:StopAutomation()
-  if currentAutomationName then
-    if currentTask == "running" and currentAutomationTable.Pause then
-      paused = true
-      currentAutomationTable.Pause()
-      MM:Print("Automation function paused")
-      setMenuLocked(false)
-    elseif not paused then
-      terminateAutomation()
-    end
+  if currentAutomation and currentAutomation.Pause then
+    currentTask = "paused"
+    currentAutomation.Pause()
+    setMenuLocked(false)
+    MM:Print("Automation function paused")
+  else
+    terminateAutomation()
+    MM:Print("Automation function canceled")
   end
-end
-
-function MM.AutomationManager:IsRunning()
-  return currentAutomationName and currentTask
 end
 
 local function logStatusError(status)
   MM:Print("ERROR: Unrecognized automation function status \"" .. tostring(status) .. "\"")
 end
 
-local function handleInitStatus(status)
-  if status == "startClicked" or status == "continueClicked" then
-    paused = false
-    currentTask = "running"
-    currentAutomationTable.Start()
-  elseif status == "stopClicked" then
-    paused = false
-    currentTask = "init"
-    currentAutomationTable.Stop()
-    currentAutomationTable.ShowInitPrompt()
-  elseif status == "cancelClicked" then
-    if not paused then
-      terminateAutomation()
-    else
-      setMenuLocked(false)
-    end
-  else
-    logStatusError(status)
-  end
-end
-
-local function handleRunningStatus(status)
-  if status == "finished" then
-    if currentAutomationTable.PostProcessing then
-      currentTask = "postprocessing"
-      currentAutomationTable.PostProcessing()
-    else
-      terminateAutomation()
-    end
-  elseif status == "cancelClicked" then
-    terminateAutomation()
-  else
-    logStatusError(status)
-  end
-end
-
-local function handlePostprocessingStatus(status)
-  if status == "finished" then
-    terminateAutomation()
-  else
-    logStatusError(status)
-  end
-end
-
 local function manageAutomationFunction(status)
+  if status == "cancel" then
+    currentAutomation.Cancel()
+    terminateAutomation()
+    return
+  end
   if currentTask == "init" then
-    handleInitStatus(status)
+    if status == "start" then
+      currentTask = "running"
+      currentAutomation.Start()
+    elseif status == "stop" then
+      currentTask = "init"
+      currentAutomation.ShowInitPrompt()
+    else
+      logStatusError(status)
+    end
   elseif currentTask == "running" then
-    handleRunningStatus(status)
+    if status == "finished" then
+      if currentAutomation.PostProcessing then
+        currentTask = "postprocessing"
+        currentAutomation.PostProcessing()
+      else
+        terminateAutomation()
+      end
+    else
+      logStatusError(status)
+    end
   elseif currentTask == "postprocessing" then
-    handlePostprocessingStatus(status)
+    if status == "finished" then
+      terminateAutomation()
+    else
+      logStatusError(status)
+    end
   end
 end
 
 -- tell automation manager that it is done executing the current task
 function MM.AutomationManager:Inform(automationTable, status)
-  if automationTable == currentAutomationTable then
+  if automationTable == currentAutomation then
     manageAutomationFunction(status)
   else
-    MM:Print("ERROR: Unmanaged automation function is running: " .. automationTable.GetName() .. " " .. status)
+    MM:Print("ERROR: Unmanaged automation function is running")
   end
 end

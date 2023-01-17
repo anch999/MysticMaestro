@@ -287,7 +287,7 @@ end
 local myAuctionsButtonCount = 12
 
 local function createMyAuctionsScrollFrame()
-  local myAuctionsScrollFrameContainer = MM:CreateMenuContainer(ahExtensionMenu, "TOPRIGHT", auctionScrollFrameWidth, buttonHeight * myAuctionsButtonCount, -11, -20)
+  local myAuctionsScrollFrameContainer = MM:CreateContainer(ahExtensionMenu, "TOPRIGHT", auctionScrollFrameWidth, buttonHeight * myAuctionsButtonCount, -11, -20)
   local scrollFrame = createAuctionsScrollFrame(
     "MysticMaestroMyAuctions",
     "My Auctions",
@@ -326,7 +326,7 @@ end
 local selectedEnchantAuctionsButtonCount = 6
 
 local function createSelectedEnchantAuctionsScrollFrame()
-  local selectedEnchantAuctionsScrollFrameContainer = MM:CreateMenuContainer(ahExtensionMenu, "BOTTOMRIGHT", auctionScrollFrameWidth, buttonHeight * selectedEnchantAuctionsButtonCount, -11, 40)
+  local selectedEnchantAuctionsScrollFrameContainer = MM:CreateContainer(ahExtensionMenu, "BOTTOMRIGHT", auctionScrollFrameWidth, buttonHeight * selectedEnchantAuctionsButtonCount, -11, 40)
   local scrollFrame = createAuctionsScrollFrame(
     "MysticMaestroSelectedEnchantAuctions",
     "Selected Enchant Auctions",
@@ -354,7 +354,6 @@ local function createRefreshButton()
   refreshButton:SetDisabledTexture("Interface\\AddOns\\MysticMaestro\\textures\\UI-RefreshButton-Disabled")
   refreshButton:SetScript("OnClick",
   function()
-    if MM.AutomationManager:IsRunning() then return end
     if MM:GetSelectedEnchantButton() then
       MM:ClearSelectedEnchantAuctions()
       MM:RefreshSelectedEnchantAuctions(false)
@@ -379,11 +378,11 @@ local function initAHExtension()
   createRefreshButton()
 end
 
-local function undercut(enchantID, buyoutPrice, yours)
-  if yours then
-    MM:ListAuction(enchantID, buyoutPrice)
+local function undercut(auctionData)
+  if auctionData.yours then
+    MM:ListAuction(auctionData.enchantID, auctionData.buyoutPrice)
   else
-    MM:ListAuction(enchantID, buyoutPrice - 1)
+    MM:ListAuction(auctionData.enchantID, auctionData.buyoutPrice - 1)
   end
 end
 
@@ -397,7 +396,16 @@ local function setUpButtonWidgets()
   scanButton:SetText("Scan")
   scanButton:SetCallback("OnClick",
     function(self, event)
-      MM.AutomationManager:ShowAutomationPrompt("Scan")
+      if MM.db.realm.OPTIONS.useGetall then
+        MM:HandleGetAllScan()
+      else
+        local str = ""
+        if MM.db.realm.OPTIONS.rarityMagic then str = "uncommon" end
+        if MM.db.realm.OPTIONS.rarityRare then str = str .. (str ~= "" and " " or "") .. "rare" end
+        if MM.db.realm.OPTIONS.rarityEpic then str = str .. (str ~= "" and " " or "") .. "epic" end
+        if MM.db.realm.OPTIONS.rarityLegendary then str = str .. (str ~= "" and " " or "") .. "legendary" end
+        MM:HandleScan(str)
+      end
     end
   )
   scanButton.frame:Show()
@@ -411,22 +419,16 @@ local function setUpButtonWidgets()
   listButton:SetText("List")
   listButton:SetCallback("OnClick",
     function(self, event)
-      if MM.AutomationManager:IsRunning() then return end
       local auctionData = MM:GetSelectedSelectedEnchantAuctionData()
       if not auctionData then
         local results = MM:GetSelectedEnchantAuctionsResults()
         if #results > 0 then
-          local price, yours = MM:PriceCorrection(results[1],results)
-          if not price then
-            MM:Print("Price is below Minimum, leaving in inventory.")
-            return
-          end
-          undercut(MM:GetSelectedEnchantButton().enchantID, price, yours)
+          undercut(results[1])
         else
-          MM:ListAuction(MM:GetSelectedEnchantButton().enchantID, MM.db.realm.OPTIONS.postDefault * 10000)
+          MM:ListAuction(MM:GetSelectedEnchantButton().enchantID, 1200000)
         end
       else
-        undercut(auctionData.enchantID, auctionData.buyoutPrice, auctionData.yours)
+        undercut(auctionData)
       end
     end
   )
@@ -442,7 +444,6 @@ local function setUpButtonWidgets()
   buyCancelbutton:SetText("Buyout/Cancel")
   buyCancelbutton:SetCallback("OnClick",
     function(self, event)
-      if MM.AutomationManager:IsRunning() then return end
       local selectedAuctionData = MM:GetSelectedSelectedEnchantAuctionData()
       if not selectedAuctionData then return end
       if selectedAuctionData.yours then
@@ -490,6 +491,7 @@ function MM:ShowAHExtension()
   MysticMaestroMenuAHExtension:ClearAllPoints()
   MysticMaestroMenuAHExtension:SetPoint("BOTTOMRIGHT", AuctionFrame, "BOTTOMRIGHT", 0, 0)
   MysticMaestroMenuAHExtension:SetParent(AuctionFrame)
+  self.menuState = "AUCTION"
   MM:toggleAHExtensionHelpPlates(true)
 end
 
@@ -554,7 +556,7 @@ function MM:MyAuctions_AUCTION_OWNED_LIST_UPDATE()
   self:CacheMyAuctionResults(self.listedAuctionEnchantID)
   self.listedAuctionEnchantID = nil
   self.listedAuctionBuyoutPrice = nil
-  if self:IsEmbeddedMenuOpen() and not self.AutomationManager:IsRunning() then
+  if self.menuState == "AUCTION" then
     self:RefreshMyAuctionsScrollFrame()
   end
 end
